@@ -4,7 +4,7 @@
       {
         "type": "node",
         "request": "launch",
-        "name": "Run with Mojo Task",
+        "name": "runMojo",
         "preLaunchTask": "runMojo"
       }
     ]
