@@ -28,6 +28,21 @@ class InputContext(Protocol):
     """A base class for model contexts, represent model inputs for TokenGenerators."""
 
     @property
+    def context_visibility(self) -> dict[str, bool]:
+        """Returns a mapping of which previous messages are visible to the model."""
+        ...
+
+    @property
+    def interface_metadata(self) -> dict[str, Any]:
+        """Returns metadata about the interface environment."""
+        ...
+
+    @property
+    def mcp_version(self) -> str:
+        """Returns the version of MCP protocol being used."""
+        ...
+
+    @property
     def cache_seq_id(self) -> int: ...
 
     @property
@@ -139,10 +154,14 @@ class TextContext:
         log_probabilities: int = 0,
         log_probabilities_echo: bool = False,
         json_schema: str | None = None,
+        interface_metadata: dict[str, Any] | None = None,
     ) -> None:
         self.cache_seq_id = cache_seq_id
         self.prompt = prompt
         self.max_length = max_length
+        self._interface_metadata = interface_metadata or {}
+        self._context_visibility = {}
+        self._mcp_version = "1.0"
 
         if tokens.ndim != 1:
             msg = f"tokens must be one dimensional array: got shape '{tokens.shape}'"
@@ -170,6 +189,21 @@ class TextContext:
         self.matcher = None
         self.json_schema = json_schema
         self.is_initial_prompt = True
+
+    @property
+    def context_visibility(self) -> dict[str, bool]:
+        """Returns a mapping of which previous messages are visible to the model."""
+        return self._context_visibility
+
+    @property
+    def interface_metadata(self) -> dict[str, Any]:
+        """Returns metadata about the interface environment."""
+        return self._interface_metadata
+
+    @property
+    def mcp_version(self) -> str:
+        """Returns the version of MCP protocol being used."""
+        return self._mcp_version
 
     @property
     def start_idx(self) -> int:
@@ -322,6 +356,14 @@ class TextContext:
 
         return res
 
+    def update_context_visibility(self, message_id: str, is_visible: bool) -> None:
+        """Updates the visibility status of a message in the conversation context."""
+        self._context_visibility[message_id] = is_visible
+
+    def update_interface_metadata(self, metadata: dict[str, Any]) -> None:
+        """Updates the interface metadata with new information."""
+        self._interface_metadata.update(metadata)
+
 
 class TextAndVisionContext(TextContext):
     """A base class for model context, specifically for Vision model variants."""
@@ -337,6 +379,7 @@ class TextAndVisionContext(TextContext):
         log_probabilities: int = 0,
         log_probabilities_echo: bool = False,
         json_schema: str | None = None,
+        interface_metadata: dict[str, Any] | None = None,
     ) -> None:
         super().__init__(
             cache_seq_id=cache_seq_id,
@@ -346,9 +389,17 @@ class TextAndVisionContext(TextContext):
             log_probabilities=log_probabilities,
             log_probabilities_echo=log_probabilities_echo,
             json_schema=json_schema,
+            interface_metadata=interface_metadata,
         )
         self.pixel_values = pixel_values
         self.extra_model_args = extra_model_args
+
+        # Add vision-specific metadata
+        self.update_interface_metadata({
+            "modalities": ["text", "vision"],
+            "vision_enabled": True,
+            "supported_image_formats": ["PNG", "JPEG", "GIF"],
+        })
 
     def update(
         self,
