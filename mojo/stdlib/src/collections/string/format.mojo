@@ -61,7 +61,7 @@ struct _FormatCurlyEntry(CollectionElement, CollectionElementNew):
     - `Bool` for escaped curlies: (value field contains False for `{` or True
         for `}`).
     """
-    var field: Self._FieldVariantType
+    var field: _FieldVariantType
     """Store the substitution field. See `Self._FieldVariantType` docstrings for
     more details."""
     alias _args_t = VariadicPack[element_trait=_CurlyEntryFormattable, *_]
@@ -593,9 +593,9 @@ struct _FormatSpec:
 
     fn __init__(
         mut self,
-        fill: UInt8 = ord(" "),
+        fill: UInt8 = 32u8,
         align: UInt8 = 0,
-        sign: UInt8 = ord("-"),
+        sign: UInt8 = 45u8,
         coerce_z: Bool = False,
         alternate_form: Bool = False,
         width: UInt8 = 0,
