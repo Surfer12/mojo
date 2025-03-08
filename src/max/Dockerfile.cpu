@@ -13,23 +13,57 @@
 
 # This is an example of how to run max-pipelines serve in a docker container.
 
-# Create a build image to download depedencies
-FROM ghcr.io/modular/magic:latest AS production
+# Create a build image to download dependencies
+FROM ghcr.io/modular/magic:latest AS builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY . /app
 WORKDIR /app
 
+# Copy only dependency files to leverage caching
+COPY pixi.toml magic.lock ./
+
+# Run magic install for dependencies only
 RUN magic install
+
+# Now copy the rest of the application code
+COPY . .
+
+# Create a smaller production image
+FROM ghcr.io/modular/magic:latest
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user to run the application
+RUN groupadd -r maxuser && useradd -r -g maxuser maxuser
+
+WORKDIR /app
+
+# Copy from the builder stage
+COPY --from=builder /app /app
+# Copy the magic installation
+COPY --from=builder /usr/local/magic /usr/local/magic
+
+# Set ownership to non-root user
+RUN chown -R maxuser:maxuser /app
 
 EXPOSE 8000
 
-# TODO: Add HEALTHCHECK instruction
-# HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 CMD curl --fail http://localhost:8000/health || exit 1
+# Enable the healthcheck
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl --fail http://localhost:8000/health || exit 1
 
-LABEL maintainer "Modular Inc <hello@modular.com>"
+LABEL maintainer="Modular Inc <hello@modular.com>"
 
+# Environment variables
 ENV PYTHONUNBUFFERED=1
 # suppress transformers logging
 ENV TRANSFORMERS_VERBOSITY="critical"
@@ -39,8 +73,12 @@ ENV PROMETHEUS_MULTIPROC_DIR=/tmp
 
 # OTEL configuration
 ENV OTEL_SERVICE_NAME="max-serve"
-# OTEL's default histogram bucktes have poor resolution.  Prefer exponential histograms.
+# OTEL's default histogram buckets have poor resolution. Prefer exponential histograms.
 ENV OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION="base2_exponential_bucket_histogram"
+
+# Switch to non-root user
+USER maxuser
 
 ENTRYPOINT ["magic", "run", "serve"]
 CMD ["--model-path=modularai/Llama-3.1-8B-Instruct-GGUF"]
+
