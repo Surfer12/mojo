@@ -157,3 +157,5 @@ examples/models/*
 # Magic cache
 .magic
 
+tutorials/helm/max-openai-api/.helmignore
+

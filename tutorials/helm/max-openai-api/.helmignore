@@ -16,4 +16,4 @@
 .project
 .idea/
 *.tmproj
-bin
+bin/Users/ryanoates/anthropic_project/config/dev_tools/.env.example
